@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Suivi du poids — partagé</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Space+Mono:wght@400;700&display=swap');
+  :root{
+    --bg:#0d1117;--panel:#161b22;--panel2:#1c232d;--line:#2a3340;
+    --txt:#e6edf3;--muted:#8b98a9;--accent:#ffb454;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{
+    background:var(--bg);
+    background-image:radial-gradient(circle at 20% 0%,#1a2330 0%,transparent 45%),
+                     radial-gradient(circle at 90% 100%,#181f2b 0%,transparent 40%);
+    color:var(--txt);font-family:'Bricolage Grotesque',sans-serif;
+    min-height:100vh;padding:18px 14px 60px;line-height:1.4;
+  }
+  h1{font-size:1.55rem;font-weight:800;letter-spacing:-.5px;display:flex;align-items:center;gap:9px}
+  h1 .dot{width:11px;height:11px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px var(--accent)}
+  .sub{color:var(--muted);font-size:.82rem;margin:3px 0 18px;font-family:'Space Mono',monospace;display:flex;align-items:center;gap:7px}
+  .sync{width:8px;height:8px;border-radius:50%;background:#5ac26a;box-shadow:0 0 8px #5ac26a}
+  .sync.off{background:#ff5252;box-shadow:0 0 8px #ff5252}
+  .sync.wait{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:16px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+  .label{font-size:.72rem;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:9px;font-family:'Space Mono',monospace;display:flex;justify-content:space-between;align-items:center}
+  .addp{color:var(--accent);font-weight:700;cursor:pointer;font-size:.78rem;letter-spacing:0;text-transform:none;font-family:'Bricolage Grotesque'}
+
+  .people{display:flex;flex-wrap:wrap;gap:8px}
+  .person{flex:1 1 28%;min-width:90px;border:2px solid var(--line);background:var(--panel2);border-radius:13px;padding:11px 6px;text-align:center;cursor:pointer;transition:.18s;font-weight:700;font-size:.9rem;position:relative}
+  .person small{display:block;font-size:.58rem;color:var(--muted);font-weight:400;margin-top:2px;font-family:'Space Mono',monospace}
+  .person.sel{box-shadow:0 0 0 3px rgba(255,255,255,.06)}
+  .pname{outline:none}
+  .px{position:absolute;top:3px;right:6px;color:#5b6675;font-size:.85rem;display:none}
+  .person.sel .px{display:block}
+
+  input,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:12px;color:var(--txt);padding:13px 14px;font-size:1rem;font-family:inherit}
+  input[type=date]{font-family:'Space Mono',monospace}
+  textarea{resize:none;min-height:46px}
+  .row{display:flex;gap:10px;margin-bottom:12px}.row>div{flex:1}
+  .field{margin-bottom:12px}
+  .btn{width:100%;border:none;border-radius:13px;padding:15px;font-size:1.02rem;font-weight:800;font-family:inherit;cursor:pointer;background:var(--accent);color:#241400;letter-spacing:.3px}
+  .btn:active{transform:scale(.98)}
+  .btn:disabled{opacity:.4}
+
+  .stats{display:flex;gap:9px;margin-bottom:16px}
+  .stat{flex:1;border-radius:14px;padding:12px 8px;text-align:center;border:1px solid var(--line)}
+  .stat .n{font-size:1.35rem;font-weight:800;font-family:'Space Mono',monospace}
+  .stat .l{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:3px}
+  .stat .ev{font-size:.78rem;font-weight:700;margin-top:4px;font-family:'Space Mono',monospace}
+  canvas{margin-top:6px}
+  table{width:100%;border-collapse:collapse;font-size:.84rem}
+  th,td{padding:9px 7px;text-align:center;border-bottom:1px solid var(--line)}
+  th{font-size:.64rem;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-family:'Space Mono',monospace}
+  td.date{font-family:'Space Mono',monospace;color:var(--muted);font-size:.76rem;white-space:nowrap;text-align:left}
+  .wv{font-weight:800;font-family:'Space Mono',monospace}
+  .note{font-size:.7rem;color:var(--muted);display:block;margin-top:1px}
+  .del{color:#5b6675;cursor:pointer;font-size:1rem}
+  .empty{color:var(--muted);text-align:center;padding:24px;font-size:.85rem}
+  .tabs{display:flex;gap:8px;margin-bottom:14px}
+  .tab{flex:1;text-align:center;padding:9px;border-radius:11px;background:var(--panel2);border:1px solid var(--line);font-size:.8rem;font-weight:700;cursor:pointer;color:var(--muted)}
+  .tab.on{color:var(--txt);border-color:var(--accent)}
+  .tools{display:flex;gap:8px;margin-top:14px}
+  .tools button{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--muted);border-radius:11px;padding:11px;font-size:.78rem;font-family:'Space Mono',monospace;cursor:pointer}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(80px);background:var(--accent);color:#241400;padding:13px 22px;border-radius:30px;font-weight:800;font-size:.9rem;opacity:0;transition:.3s;z-index:50}
+  .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+  .hint{color:var(--muted);font-size:.7rem;font-family:'Space Mono',monospace;text-align:center;margin-top:18px;line-height:1.6}
+  .banner{background:#3a1818;border:1px solid #ff5252;color:#ffb3b3;border-radius:13px;padding:13px;font-size:.82rem;margin-bottom:16px;line-height:1.5}
+  .banner b{color:#fff}
+
+  /* Pastille couleur sur personne sélectionnée */
+  .pdot{position:absolute;top:5px;left:6px;width:13px;height:13px;border-radius:50%;border:2px solid #0d1117;display:none;cursor:pointer}
+  .person.sel .pdot{display:block}
+
+  /* Modale */
+  .modal{position:fixed;inset:0;background:rgba(8,10,14,.78);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:20px;z-index:60}
+  .modal.show{display:flex}
+  .modalBox{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .modalTitle{font-size:1.15rem;font-weight:800;margin-bottom:6px}
+  .palette{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:4px}
+  .swatch{aspect-ratio:1;border-radius:13px;cursor:pointer;border:3px solid transparent;display:flex;align-items:center;justify-content:center;font-size:1.1rem;color:#fff;transition:.15s;position:relative}
+  .swatch.sel{border-color:#fff;box-shadow:0 0 0 3px rgba(255,255,255,.12)}
+  .swatch.used{opacity:.35}
+  .swatch.used::after{content:'✓';position:absolute;font-weight:800;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)}
+  .modalBtns{display:flex;gap:10px;margin-top:18px}
+  .mBtn{flex:1;border:none;border-radius:12px;padding:13px;font-weight:800;font-family:inherit;font-size:.95rem;cursor:pointer}
+  .mBtn.ghost{background:var(--panel2);color:var(--muted);border:1px solid var(--line)}
+  .mBtn.ok{background:var(--accent);color:#241400}
+  .mBtn.ok:disabled{opacity:.4}
+</style>
+</head>
+<body>
+  <h1><span class="dot"></span>Suivi du poids</h1>
+  <div class="sub"><span class="sync wait" id="syncDot"></span><span id="syncTxt">connexion…</span></div>
+
+  <div id="setupBanner" class="banner" style="display:none">
+    <b>Configuration requise.</b> Ouvre ce fichier dans un éditeur de texte et colle ta config Firebase
+    à l'endroit indiqué (cherche <b>COLLE_TA_CONFIG_ICI</b>). Le guide est fourni avec le fichier.
+  </div>
+
+  <div class="card">
+    <div class="label"><span>1 · Qui se pèse ?</span><span class="addp" id="addPerson">+ Ajouter</span></div>
+    <div class="people" id="people"></div>
+    <div style="height:16px"></div>
+    <div class="label">2 · Date & poids</div>
+    <div class="row">
+      <div><input type="date" id="date"></div>
+      <div><input type="number" id="weight" inputmode="decimal" step="0.1" placeholder="Poids (kg)"></div>
+    </div>
+    <div class="field"><textarea id="note" placeholder="Note du jour (optionnel) — repas de fête, sport, malade…"></textarea></div>
+    <button class="btn" id="add">Enregistrer la pesée</button>
+  </div>
+
+  <div class="card">
+    <div class="label">Évolution de <span id="curName">—</span></div>
+    <div class="stats" id="stats"></div>
+    <canvas id="chart" height="220"></canvas>
+    <div class="tabs" id="rangeTabs">
+      <div class="tab on" data-r="30">30 jours</div>
+      <div class="tab" data-r="90">3 mois</div>
+      <div class="tab" data-r="9999">Tout</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">Historique de <span id="curName2">—</span></div>
+    <div id="tableWrap"></div>
+    <div class="tools"><button id="export">⤓ Exporter (CSV)</button></div>
+  </div>
+
+  <div class="hint">
+    Données partagées en temps réel entre tous les téléphones.<br>
+    Donne le même lien aux autres pour qu'ils voient et ajoutent leurs pesées.
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <!-- MODALE Prénom + couleur -->
+  <div class="modal" id="modal">
+    <div class="modalBox">
+      <div class="modalTitle" id="modalTitle">Nouvelle personne</div>
+      <div class="label" style="margin-top:8px">Prénom</div>
+      <input type="text" id="mName" placeholder="ex. Jérémy" autocomplete="off">
+      <div class="label" style="margin-top:14px">Couleur</div>
+      <div class="palette" id="mPalette"></div>
+      <div class="modalBtns">
+        <button class="mBtn ghost" id="mCancel">Annuler</button>
+        <button class="mBtn ok" id="mOk">Créer</button>
+      </div>
+    </div>
+  </div>
+
+<!-- ════════════════ FIREBASE ════════════════ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, onValue, set, remove, update }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+/* ╔══════════════════════════════════════════════════════════╗
+   ║  COLLE_TA_CONFIG_ICI                                       ║
+   ║  Remplace tout le bloc ci-dessous par celui que Firebase   ║
+   ║  te donne (étape 6 du guide). Garde les accolades.         ║
+   ╚══════════════════════════════════════════════════════════╝ */
+const firebaseConfig = {
+  apiKey: "AIzaSyDrY2_ioB9l3QxFJEU0JXMkIWwd5GxGzX4",
+  authDomain: "suivi-poids-zing.firebaseapp.com",
+  databaseURL: "https://suivi-poids-zing-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "suivi-poids-zing",
+  storageBucket: "suivi-poids-zing.firebasestorage.app",
+  messagingSenderId: "910005575621",
+  appId: "1:910005575621:web:bda9a73b6d5ed3cdc135ac",
+  measurementId: "G-C76KDW1RKK"
+};
+/* ═══════════════ ne touche rien en dessous ═══════════════ */
+
+const PALETTE=['#ff5252','#3d9bff','#5ac26a','#ffb454','#b18cff','#ff7ac6','#4dd0e1','#c0ca33'];
+const MAX_PEOPLE=8;
+const $=s=>document.querySelector(s);
+const fmtDate=iso=>{const d=new Date(iso+'T00:00');const j=['dim','lun','mar','mer','jeu','ven','sam'][d.getDay()];return j+' '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');};
+let toastT;const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1800);};
+
+let STATE={people:[],entries:{}}; // people:[{id,name,color}], entries:{personId:{date:{w,n}}}
+let cur=null, range=30, chart, db=null, ready=false;
+
+function setSync(state,txt){const d=$('#syncDot');d.className='sync '+state;$('#syncTxt').textContent=txt;}
+
+// ---- démarrage ----
+if(firebaseConfig.apiKey==="TON_API_KEY"){
+  $('#setupBanner').style.display='block';
+  setSync('off','non configuré');
+  $('#add').disabled=true;
+  renderLocalDemo();
+}else{
+  try{
+    const app=initializeApp(firebaseConfig);
+    db=getDatabase(app);
+    setSync('wait','synchronisation…');
+    onValue(ref(db,'/'),snap=>{
+      const v=snap.val()||{};
+      STATE.people = v.people || [];
+      STATE.entries = v.entries || {};
+      if(!STATE.people.length){ seedPeople(); return; }
+      if(cur===null || !STATE.people.find(p=>p.id===cur)) cur=STATE.people[0].id;
+      ready=true; setSync('on','synchronisé'); refresh();
+    },err=>{ setSync('off','erreur de connexion'); console.error(err); });
+  }catch(e){ setSync('off','config invalide'); $('#setupBanner').style.display='block'; }
+}
+
+function seedPeople(){
+  const init=[{id:uid(),name:'Jérémy',color:PALETTE[0]},
+              {id:uid(),name:'Personne 2',color:PALETTE[1]},
+              {id:uid(),name:'Personne 3',color:PALETTE[2]}];
+  set(ref(db,'/people'),init);
+}
+function uid(){return 'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
+
+// ---- actions (écrivent dans Firebase) ----
+function addEntry(){
+  if(!ready)return;
+  const d=$('#date').value, w=parseFloat($('#weight').value.replace(',','.')), n=$('#note').value.trim();
+  if(!d){toast('Choisis une date');return;}
+  if(isNaN(w)){toast('Entre un poids');return;}
+  set(ref(db,`/entries/${cur}/${d}`),{w,n});
+  $('#weight').value='';$('#note').value='';toast('Pesée enregistrée ✓');
+}
+function delEntry(d){ if(ready) remove(ref(db,`/entries/${cur}/${d}`)); }
+
+// ---- modale prénom + couleur ----
+let modalMode='add'; // 'add' ou 'editColor'
+let modalEditId=null;
+let modalColor=null;
+
+function openAddPerson(){
+  if(!ready)return;
+  if(STATE.people.length>=MAX_PEOPLE){toast('Maximum '+MAX_PEOPLE+' personnes');return;}
+  modalMode='add'; modalEditId=null;
+  $('#modalTitle').textContent='Nouvelle personne';
+  $('#mName').value='';
+  $('#mName').parentElement.querySelector('.label').style.display='';
+  $('#mName').style.display='';
+  $('#mOk').textContent='Créer';
+  const used=STATE.people.map(p=>p.color);
+  modalColor=PALETTE.find(c=>!used.includes(c))||PALETTE[0];
+  buildPalette();
+  $('#modal').classList.add('show');
+  setTimeout(()=>$('#mName').focus(),50);
+}
+function openEditColor(id){
+  if(!ready)return;
+  const p=STATE.people.find(x=>x.id===id); if(!p)return;
+  modalMode='editColor'; modalEditId=id; modalColor=p.color;
+  $('#modalTitle').textContent='Couleur de '+p.name;
+  // cache le champ prénom en mode édition couleur
+  $('#mName').style.display='none';
+  $('#mName').parentElement.querySelector('.label').style.display='none';
+  $('#mOk').textContent='Valider';
+  buildPalette();
+  $('#modal').classList.add('show');
+}
+function closeModal(){ $('#modal').classList.remove('show'); }
+function buildPalette(){
+  const usedByOthers=STATE.people.filter(p=>p.id!==modalEditId).map(p=>p.color);
+  const pal=$('#mPalette'); pal.innerHTML='';
+  PALETTE.forEach(c=>{
+    const sw=document.createElement('div');
+    sw.className='swatch'+(c===modalColor?' sel':'')+(usedByOthers.includes(c)?' used':'');
+    sw.style.background=c;
+    sw.onclick=()=>{ modalColor=c; buildPalette(); };
+    pal.appendChild(sw);
+  });
+}
+function confirmModal(){
+  if(modalMode==='add'){
+    const name=$('#mName').value.trim()||('Personne '+(STATE.people.length+1));
+    const np={id:uid(),name,color:modalColor};
+    set(ref(db,'/people'),[...STATE.people,np]).then(()=>{cur=np.id;});
+  } else if(modalMode==='editColor'){
+    const np=STATE.people.map(p=>p.id===modalEditId?{...p,color:modalColor}:p);
+    set(ref(db,'/people'),np);
+  }
+  closeModal();
+}
+function delPerson(id){
+  if(!ready)return;
+  if(STATE.people.length<=1){toast('Au moins une personne');return;}
+  if(!confirm('Supprimer cette personne et toutes ses pesées ?'))return;
+  const np=STATE.people.filter(p=>p.id!==id);
+  update(ref(db,'/'),{people:np,[`entries/${id}`]:null});
+  cur=np[0].id;
+}
+function renamePerson(id,name){
+  if(!ready)return;
+  const np=STATE.people.map(p=>p.id===id?{...p,name:name||p.name}:p);
+  set(ref(db,'/people'),np);
+}
+
+// ---- rendu ----
+function curPerson(){return STATE.people.find(p=>p.id===cur)||STATE.people[0];}
+function entriesOf(id){
+  const o=STATE.entries[id]||{};
+  return Object.keys(o).sort().map(d=>({d,w:o[d].w,n:o[d].n||''}));
+}
+
+function buildPeople(){
+  const c=$('#people');c.innerHTML='';
+  STATE.people.forEach(p=>{
+    const sel=p.id===cur;
+    const el=document.createElement('div');
+    el.className='person'+(sel?' sel':'');
+    el.style.borderColor=sel?p.color:'var(--line)';
+    el.style.background=sel?hexA(p.color,.16):'var(--panel2)';
+    el.innerHTML=`<span class="pdot" data-color="${p.id}" style="background:${p.color}"></span>
+      <span class="px" data-del="${p.id}">✕</span>
+      <span class="pname" contenteditable="true" data-id="${p.id}" style="color:${sel?p.color:'var(--txt)'}">${p.name}</span>
+      <small>${sel?'sélectionné':'toucher'}</small>`;
+    el.onclick=e=>{
+      if(e.target.dataset.del){delPerson(e.target.dataset.del);return;}
+      if(e.target.dataset.color){openEditColor(e.target.dataset.color);return;}
+      if(e.target.classList.contains('pname'))return;
+      cur=p.id;refresh();
+    };
+    c.appendChild(el);
+  });
+  c.querySelectorAll('.pname').forEach(s=>{
+    s.onblur=()=>renamePerson(s.dataset.id,s.textContent.trim());
+    s.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();s.blur();}};
+  });
+}
+function hexA(hex,a){const n=parseInt(hex.slice(1),16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;}
+
+function stats(){
+  const arr=entriesOf(cur),box=$('#stats'),p=curPerson();
+  if(!arr.length){box.innerHTML='<div class="stat"><div class="n">—</div><div class="l">aucune donnée</div></div>';return;}
+  const first=arr[0].w,last=arr[arr.length-1].w,ev=+(last-first).toFixed(1);
+  const evTxt=ev>0?('+'+ev+' kg'):(ev+' kg');
+  const evCol=ev>0?'#ff7676':(ev<0?'#5ac26a':'#8b98a9');
+  box.innerHTML=`
+    <div class="stat"><div class="n">${first.toFixed(1)}</div><div class="l">Départ</div></div>
+    <div class="stat"><div class="n" style="color:${p.color}">${last.toFixed(1)}</div><div class="l">Actuel</div></div>
+    <div class="stat"><div class="n">${arr.length}</div><div class="l">pesées</div><div class="ev" style="color:${evCol}">${evTxt}</div></div>`;
+}
+function table(){
+  const arr=entriesOf(cur).reverse(),w=$('#tableWrap'),p=curPerson();
+  if(!arr.length){w.innerHTML='<div class="empty">Aucune pesée pour l’instant.<br>Ajoute la première ci-dessus 👆</div>';return;}
+  let h='<table><thead><tr><th style="text-align:left">Date</th><th>Poids</th><th></th></tr></thead><tbody>';
+  arr.forEach(e=>{h+=`<tr><td class="date">${fmtDate(e.d)}</td>
+    <td><span class="wv" style="color:${p.color}">${e.w.toFixed(1)}</span>
+    ${e.n?`<span class="note">${e.n.replace(/</g,'&lt;')}</span>`:''}</td>
+    <td><span class="del" data-d="${e.d}">✕</span></td></tr>`;});
+  w.innerHTML=h+'</tbody></table>';
+  w.querySelectorAll('.del').forEach(b=>b.onclick=()=>delEntry(b.dataset.d));
+}
+function drawChart(){
+  const ctx=$('#chart');
+  const cut=new Date();cut.setDate(cut.getDate()-range);
+  const all=new Set();
+  STATE.people.forEach(p=>entriesOf(p.id).forEach(e=>{if(range>=9999||new Date(e.d+'T00:00')>=cut)all.add(e.d);}));
+  const dates=[...all].sort();
+  const sets=STATE.people.map(p=>{
+    const o=STATE.entries[p.id]||{};
+    return{label:p.name,data:dates.map(d=>o[d]?o[d].w:null),borderColor:p.color,backgroundColor:p.color,
+           tension:.3,pointRadius:3,pointHoverRadius:5,borderWidth:2.5,spanGaps:true};
+  });
+  if(chart)chart.destroy();
+  chart=new Chart(ctx,{type:'line',data:{labels:dates.map(fmtDate),datasets:sets},options:{
+    responsive:true,interaction:{intersect:false,mode:'index'},
+    plugins:{legend:{labels:{color:'#e6edf3',font:{family:'Bricolage Grotesque',size:12},usePointStyle:true,pointStyle:'circle'}}},
+    scales:{y:{title:{display:true,text:'Poids (kg)',color:'#8b98a9'},ticks:{color:'#8b98a9'},grid:{color:'#222b35'}},
+            x:{ticks:{color:'#8b98a9',maxRotation:60,minRotation:45,font:{size:9}},grid:{color:'#1b222b'}}}
+  }});
+}
+function refresh(){
+  if(!STATE.people.length)return;
+  buildPeople();
+  const p=curPerson();
+  $('#curName').textContent=p.name;$('#curName2').textContent=p.name;
+  stats();table();drawChart();
+}
+
+// démo locale si non configuré (juste pour voir l'interface)
+function renderLocalDemo(){
+  STATE.people=[{id:'a',name:'Jérémy',color:PALETTE[0]},{id:'b',name:'Personne 2',color:PALETTE[1]},{id:'c',name:'Personne 3',color:PALETTE[2]}];
+  cur='a';buildPeople();$('#curName').textContent='Jérémy';$('#curName2').textContent='Jérémy';stats();table();drawChart();
+}
+
+$('#add').onclick=addEntry;
+$('#addPerson').onclick=openAddPerson;
+$('#mCancel').onclick=closeModal;
+$('#mOk').onclick=confirmModal;
+$('#modal').onclick=e=>{ if(e.target.id==='modal') closeModal(); };
+$('#mName').addEventListener('keydown',e=>{ if(e.key==='Enter') confirmModal(); });
+$('#rangeTabs').onclick=e=>{const t=e.target.closest('.tab');if(!t)return;range=+t.dataset.r;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));t.classList.add('on');drawChart();};
+$('#export').onclick=()=>{
+  let csv='Personne,Date,Poids,Note\n';
+  STATE.people.forEach(p=>entriesOf(p.id).forEach(e=>{csv+=`"${p.name}",${e.d},${e.w},"${(e.n||'').replace(/"/g,'""')}"\n`;}));
+  const b=new Blob([csv],{type:'text/csv'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='suivi_poids.csv';a.click();
+};
+$('#date').value=new Date().toISOString().slice(0,10);
+</script>
+</body>
+</html>
